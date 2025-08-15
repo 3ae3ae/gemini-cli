@@ -21,8 +21,11 @@ import {
 import { FOCUS_IN, FOCUS_OUT } from './useFocus.js';
 
 const ESC = '\u001B';
+const NUMPAD_ENTER = `${ESC}OM`;
 export const PASTE_MODE_PREFIX = `${ESC}[200~`;
 export const PASTE_MODE_SUFFIX = `${ESC}[201~`;
+const ESC_BUFFER = Buffer.from(ESC);
+const NUMPAD_ENTER_BUFFER = Buffer.from(NUMPAD_ENTER);
 
 export interface Key {
   name: string;
@@ -307,6 +310,16 @@ export function useKeypress(
         if (isPaste) {
           pasteBuffer = Buffer.concat([pasteBuffer, Buffer.from(key.sequence)]);
         } else {
+          // Normalize certain key sequences that readline doesn't map
+          if (!key.name && key.sequence === ESC) {
+            key.name = 'escape';
+          } else if (key.sequence === NUMPAD_ENTER) {
+            key.name = 'return';
+            key.sequence = '\r';
+            key.shift = false;
+          } else if (key.name === 'enter') {
+            key.name = 'return';
+          }
           // Handle special keys
           if (key.name === 'return' && key.sequence === `${ESC}\r`) {
             key.meta = true;
@@ -316,7 +329,36 @@ export function useKeypress(
       }
     };
 
+    const handleRawEscapeAndNumpad = (data: Buffer): boolean => {
+      if (data.equals(ESC_BUFFER)) {
+        handleKeypress(undefined, {
+          name: 'escape',
+          ctrl: false,
+          meta: false,
+          shift: false,
+          paste: false,
+          sequence: ESC,
+        });
+        return true;
+      }
+      if (data.equals(NUMPAD_ENTER_BUFFER)) {
+        handleKeypress(undefined, {
+          name: 'return',
+          ctrl: false,
+          meta: false,
+          shift: false,
+          paste: false,
+          sequence: '\r',
+        });
+        return true;
+      }
+      return false;
+    };
+
     const handleRawKeypress = (data: Buffer) => {
+      if (handleRawEscapeAndNumpad(data)) {
+        return;
+      }
       const pasteModePrefixBuffer = Buffer.from(PASTE_MODE_PREFIX);
       const pasteModeSuffixBuffer = Buffer.from(PASTE_MODE_SUFFIX);
 
@@ -369,6 +411,10 @@ export function useKeypress(
       }
     };
 
+    const handleData = (data: Buffer) => {
+      handleRawEscapeAndNumpad(data);
+    };
+
     let rl: readline.Interface;
     if (usePassthrough) {
       rl = readline.createInterface({
@@ -382,6 +428,7 @@ export function useKeypress(
       rl = readline.createInterface({ input: stdin, escapeCodeTimeout: 0 });
       readline.emitKeypressEvents(stdin, rl);
       stdin.on('keypress', handleKeypress);
+      stdin.on('data', handleData);
     }
 
     return () => {
@@ -390,6 +437,7 @@ export function useKeypress(
         stdin.removeListener('data', handleRawKeypress);
       } else {
         stdin.removeListener('keypress', handleKeypress);
+        stdin.removeListener('data', handleData);
       }
       rl.close();
       setRawMode(false);

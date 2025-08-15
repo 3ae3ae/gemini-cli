@@ -10,6 +10,8 @@ import { useStdin } from 'ink';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 
+const ESC = String.fromCharCode(27);
+
 // Mock the 'ink' module to control stdin
 vi.mock('ink', async (importOriginal) => {
   const original = await importOriginal<typeof import('ink')>();
@@ -170,6 +172,38 @@ describe('useKeypress', () => {
     act(() => stdin.pressKey(key));
     expect(onKeypress).toHaveBeenCalledWith(
       expect.objectContaining({ ...key, meta: true, paste: false }),
+    );
+  });
+
+  it('should normalize escape key when name is missing', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.pressKey({ sequence: ESC }));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'escape', sequence: ESC }),
+    );
+  });
+
+  it('should normalize numpad enter to return', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.pressKey({ sequence: `${ESC}OM` }));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'return', sequence: '\r', shift: false }),
+    );
+  });
+
+  it('should emit escape when only raw data is received', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.emit('data', Buffer.from(ESC)));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'escape', sequence: ESC }),
+    );
+  });
+
+  it('should emit return for numpad enter from raw data', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.emit('data', Buffer.from(`${ESC}OM`)));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'return', sequence: '\r', shift: false }),
     );
   });
 
