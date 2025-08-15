@@ -21,6 +21,7 @@ import {
 import { FOCUS_IN, FOCUS_OUT } from './useFocus.js';
 
 const ESC = '\u001B';
+const NUMPAD_ENTER = `${ESC}OM`;
 export const PASTE_MODE_PREFIX = `${ESC}[200~`;
 export const PASTE_MODE_SUFFIX = `${ESC}[201~`;
 
@@ -307,6 +308,16 @@ export function useKeypress(
         if (isPaste) {
           pasteBuffer = Buffer.concat([pasteBuffer, Buffer.from(key.sequence)]);
         } else {
+          // Normalize certain key sequences that readline doesn't map
+          if (!key.name && key.sequence === ESC) {
+            key.name = 'escape';
+          } else if (key.sequence === NUMPAD_ENTER) {
+            key.name = 'return';
+            key.sequence = '\r';
+            key.shift = false;
+          } else if (key.name === 'enter') {
+            key.name = 'return';
+          }
           // Handle special keys
           if (key.name === 'return' && key.sequence === `${ESC}\r`) {
             key.meta = true;
