@@ -191,6 +191,23 @@ describe('useKeypress', () => {
     );
   });
 
+
+  it('should emit escape when only raw data is received', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.emit('data', Buffer.from(ESC)));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'escape', sequence: ESC }),
+    );
+  });
+
+  it('should emit return for numpad enter from raw data', () => {
+    renderHook(() => useKeypress(onKeypress, { isActive: true }));
+    act(() => stdin.emit('data', Buffer.from(`${ESC}OM`)));
+    expect(onKeypress).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'return', sequence: '\r', shift: false }),
+    );
+  });
+
   describe.each([
     {
       description: 'Modern Node (>= v20)',
