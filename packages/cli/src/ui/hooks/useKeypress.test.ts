@@ -191,6 +191,7 @@ describe('useKeypress', () => {
     );
   });
 
+
   it('should emit escape when only raw data is received', () => {
     renderHook(() => useKeypress(onKeypress, { isActive: true }));
     act(() => stdin.emit('data', Buffer.from(ESC)));
